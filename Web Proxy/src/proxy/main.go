@@ -8,12 +8,10 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	//"encoding/json"
 	"os"
-	//"syscall"
+	"crypto/tls"
 	"fmt"
-	//"crypto/tls"
-	//"crypto/x509"
+//	"golang.org/x/net/proxy"
 )
 
 type ReadWriter struct {
@@ -56,12 +54,21 @@ func makeTerminal() {
 // TODO make a handler for requests and a map to store them.
 func main() {
 	
+	s := &http.Server{
+		Addr:           ":42070",
+		Handler:        http.HandlerFunc(httpsRequestHandler),
+		TLSNextProto: 	make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	}
+	
 	//go makeTerminal()
-	certFile := "src/proxy/cert.pem"
-	keyFile := "src/proxy/key.pem"
-//	go log.Fatal(http.ListenAndServe(":42069",http.HandlerFunc(httpRequestHandler)))
-	log.Fatal(http.ListenAndServeTLS(":42070",certFile, keyFile, http.HandlerFunc(httpsRequestHandler)))
-	//log.Printf("Listeners set up successfully")
+//	certFile := "src/proxy/cert.pem"
+//	keyFile := "src/proxy/key.pem"
+
+	go func() {
+		log.Fatal(s.ListenAndServe())
+	}()
+	log.Fatal(http.ListenAndServe(":42069",http.HandlerFunc(httpRequestHandler)))
+
 	
 }
 
@@ -124,7 +131,7 @@ func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
         http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
         return
     }
-    log.Printf("Conncetion Hijacked")
+    log.Printf("Hijacking finished")
     clientConn, _, err := hijacker.Hijack()
     if err != nil {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
