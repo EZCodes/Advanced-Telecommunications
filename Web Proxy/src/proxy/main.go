@@ -11,15 +11,19 @@ import (
 	"os"
 	"crypto/tls"
 	"fmt"
-//	"golang.org/x/net/proxy"
+	"strings"
+	"strconv"
 )
+
+const dateFormat = "Mon, 02 Jan 2006 15:04:05 MST"
 
 type ReadWriter struct {
 	io.Reader
 	io.Writer
 }
 
-//var cache = map[http.Request]http.Response
+// cache is shared
+var httpCache = map[string]http.Response{}
 
 // TODO Make a channel for displaying and sending messaged to/from main program, maybe make this function just reader
 // This function makes a terminal for our web proxy
@@ -51,7 +55,7 @@ func makeTerminal() {
 		fmt.Fprintln(term, line)
 	}
 }
-// TODO make a handler for requests and a map to store them.
+
 func main() {
 	
 	s := &http.Server{
@@ -61,8 +65,6 @@ func main() {
 	}
 	
 	//go makeTerminal()
-//	certFile := "src/proxy/cert.pem"
-//	keyFile := "src/proxy/key.pem"
 
 	go func() {
 		log.Fatal(s.ListenAndServe())
@@ -72,16 +74,62 @@ func main() {
 	
 }
 
-//TODO finish this fucntion
+//TODO fix POST panics // TODO cached body is messed up sometimes
 // This function handles incoming requests and responds to them if needed
-func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
-	client := &http.Client{}
-	
-	log.Printf("received the request")
+func httpRequestHandler(w http.ResponseWriter, req *http.Request) {	
+	client := &http.Client{}	
+	log.Printf("received the http request")
 	url := req.URL
     url.Host = req.Host
     url.Scheme = "http"
     
+    // take response from cache the response and send to client, if it's not expired
+    cachedResp, exists := httpCache[req.URL.String()]
+    if exists {
+    	var unformattedDate string
+    	var maxAge int
+    	var err error
+    	for head, values := range cachedResp.Header {
+			if head == "Cache-Control" {
+				for _, value := range values {
+					if strings.Contains(value, "max-age") {
+						newVal := strings.Split(value, ",") //safety guard for wrongly parsed/constructed headers
+						value = newVal[0]
+						maxAge, err = strconv.Atoi(value[8:])
+						if err != nil {
+							log.Fatalf("Failed converting max-age value to integer: %v", err)
+						}
+					}
+				}
+			} else if head == "Date" {
+				unformattedDate = values[0]
+			}
+		}
+    	formattedDate, err := time.Parse(dateFormat, unformattedDate)
+    	if err != nil {
+    		log.Fatalf("Failed formatting Date from header into variable: %v", err)
+    	}
+    	expiryTime := formattedDate.Add(time.Duration(maxAge)*time.Second)
+    	if expiryTime.After(time.Now()){
+			cachedBody, err := ioutil.ReadAll(cachedResp.Body)
+		    if err != nil {
+		        http.Error(w, err.Error(), http.StatusInternalServerError)
+		        return
+		    }
+		    log.Printf("Read the cached body")
+			for head, values := range cachedResp.Header {
+				for _, value := range values {
+				w.Header().Add(head, value)
+				}
+			}
+			w.Write(cachedBody)
+			
+			return
+    	} else {
+    		log.Printf("Response timed out, fetching new one")
+    	}
+    }
+	   
 	// clone and forward
 	proxyReq, err := http.NewRequest(req.Method, url.String(), req.Body)
 	if err != nil {
@@ -93,6 +141,23 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 		log.Printf("Error sending forwarding request %v",err)
 	}
 	log.Printf("forwarded the request and received the response")	
+	
+	//conditionally cache the response
+	canCache := true
+	for head, values := range resp.Header {
+		if head == "Cache-Control" {
+			for _, value := range values {
+				if value == "no-cache" || value == "no-store" || value == "public" {
+					canCache = false
+					log.Printf("Response not cache-able")
+				}
+			}
+		}
+	}
+	if canCache {
+		httpCache[req.URL.String()] = *resp
+		log.Printf("Response cached")
+	}
 	
 	// clone the response and send to client
 	body, err := ioutil.ReadAll(resp.Body)
@@ -107,10 +172,7 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	w.Write(body)
-	if(resp.StatusCode != 200) {
-		w.WriteHeader(resp.StatusCode)
-	}
-	log.Printf("Finished redirection")		
+	log.Printf("Finished cloning")		
 }
 
 func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -120,15 +182,16 @@ func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
         return
     }
 	log.Printf("Dialing...")
-	destConn, err := net.DialTimeout("tcp", req.Host, time.Second*30)
+	serverConn, err := net.DialTimeout("tcp", req.Host, time.Second*30)
     if err != nil {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
         return
     }
     w.WriteHeader(http.StatusOK)
+    // Hijacking connection leaves it to us to manage the connection manually
     hijacker, ok := w.(http.Hijacker)
     if !ok {
-        http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+        http.Error(w, "Could not Hijack the connection", http.StatusInternalServerError)
         return
     }
     log.Printf("Hijacking finished")
@@ -137,12 +200,14 @@ func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
         return
     }
-    go transfer(destConn, clientConn)
-    go transfer(clientConn, destConn)
+    //  create a https transfer tunnel between server and the client through our proxy, 
+    // works both ways independently
+    go tunnel(serverConn, clientConn)
+    go tunnel(clientConn, serverConn)
     log.Printf("Finished tunelling")
 }
 
-func transfer(dest io.WriteCloser, src io.ReadCloser) {
+func tunnel(dest io.WriteCloser, src io.ReadCloser) {
     defer func() { _ = dest.Close() }()
     defer func() { _ = src.Close() }()
     _, _ = io.Copy(dest, src)
