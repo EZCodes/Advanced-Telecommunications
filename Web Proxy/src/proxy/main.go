@@ -22,8 +22,13 @@ type ReadWriter struct {
 	io.Writer
 }
 
+type cachedResponse struct {
+	response *http.Response // most of the response to use the headers
+	responseBody []byte // processed body of the response, since on receival it's streamed (can only store it in this form)
+}
+
 // cache is shared
-var httpCache = map[string]http.Response{}
+var httpCache = map[string]cachedResponse{}
 
 // TODO Make a channel for displaying and sending messaged to/from main program, maybe make this function just reader
 // This function makes a terminal for our web proxy
@@ -61,7 +66,7 @@ func main() {
 	s := &http.Server{
 		Addr:           ":42070",
 		Handler:        http.HandlerFunc(httpsRequestHandler),
-		TLSNextProto: 	make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		TLSNextProto: 	make(map[string]func(*http.Server, *tls.Conn, http.Handler)), //Disable HTTP/2
 	}
 	
 	//go makeTerminal()
@@ -74,7 +79,6 @@ func main() {
 	
 }
 
-//TODO fix POST panics // TODO cached body is messed up sometimes
 // This function handles incoming requests and responds to them if needed
 func httpRequestHandler(w http.ResponseWriter, req *http.Request) {	
 	client := &http.Client{}	
@@ -83,13 +87,13 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
     url.Host = req.Host
     url.Scheme = "http"
     
-    // take response from cache the response and send to client, if it's not expired
+    // take response from cache the response and send to client, if it's not expired and us there
     cachedResp, exists := httpCache[req.URL.String()]
     if exists {
     	var unformattedDate string
     	var maxAge int
     	var err error
-    	for head, values := range cachedResp.Header {
+    	for head, values := range cachedResp.response.Header {
 			if head == "Cache-Control" {
 				for _, value := range values {
 					if strings.Contains(value, "max-age") {
@@ -111,19 +115,19 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
     	}
     	expiryTime := formattedDate.Add(time.Duration(maxAge)*time.Second)
     	if expiryTime.After(time.Now()){
-			cachedBody, err := ioutil.ReadAll(cachedResp.Body)
+			cachedBody := cachedResp.responseBody
 		    if err != nil {
 		        http.Error(w, err.Error(), http.StatusInternalServerError)
 		        return
 		    }
 		    log.Printf("Read the cached body")
-			for head, values := range cachedResp.Header {
+			for head, values := range cachedResp.response.Header {
 				for _, value := range values {
 				w.Header().Add(head, value)
 				}
 			}
 			w.Write(cachedBody)
-			
+			log.Printf("Supplied cached response")
 			return
     	} else {
     		log.Printf("Response timed out, fetching new one")
@@ -142,6 +146,12 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	log.Printf("forwarded the request and received the response")	
 	
+	body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+	
 	//conditionally cache the response
 	canCache := true
 	for head, values := range resp.Header {
@@ -155,16 +165,16 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	if canCache {
-		httpCache[req.URL.String()] = *resp
+		toCache := cachedResponse{
+			response : resp,
+			responseBody : body,
+		}
+		httpCache[req.URL.String()] = toCache
 		log.Printf("Response cached")
 	}
 	
 	// clone the response and send to client
-	body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+    defer resp.Body.Close()
     log.Printf("Read the body")
 	for head, values := range resp.Header {
 		for _, value := range values {
@@ -200,7 +210,7 @@ func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
         return
     }
-    //  create a https transfer tunnel between server and the client through our proxy, 
+    // create a https transfer tunnel between server and the client through our proxy, 
     // works both ways independently
     go tunnel(serverConn, clientConn)
     go tunnel(clientConn, serverConn)
