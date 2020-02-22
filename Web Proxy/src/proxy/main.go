@@ -4,13 +4,10 @@ import (
 	"net"
 	"net/http"
 	"time"
-	"golang.org/x/crypto/ssh/terminal"
 	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"crypto/tls"
-	"fmt"
 	"strings"
 	"strconv"
 )
@@ -30,36 +27,8 @@ type cachedResponse struct {
 // cache is shared
 var httpCache = map[string]cachedResponse{}
 
-// TODO Make a channel for displaying and sending messaged to/from main program, maybe make this function just reader
-// This function makes a terminal for our web proxy
-func makeTerminal() {
-	rw := ReadWriter{
-		Reader: os.Stdin,
-		Writer: os.Stdout,
-	}
-	// uncomment this part if using unix like console and uncomment syscall package
-//	oldState, err := terminal.MakeRaw(int(syscall.Stdin))
-//	if err != nil {
-//        log.Fatal(err)
-//	}
-//	defer terminal.Restore(int(syscall.Stdin), oldState)
-	
-	term := terminal.NewTerminal(rw,"WebProxy >")
-	// test
-	for {
-		line, err := term.ReadLine()
-		if err == io.EOF {
-			return 
-		}
-		if err != nil {
-			log.Print(err)
-		}
-		if line == "" {
-			continue
-		}
-		fmt.Fprintln(term, line)
-	}
-}
+// list of blocked URL's
+var blockedURLs =  map[string]bool{}
 
 func main() {
 	
@@ -68,11 +37,15 @@ func main() {
 		Handler:        http.HandlerFunc(httpsRequestHandler),
 		TLSNextProto: 	make(map[string]func(*http.Server, *tls.Conn, http.Handler)), //Disable HTTP/2
 	}
-	
-	//go makeTerminal()
 
 	go func() {
 		log.Fatal(s.ListenAndServe())
+	}()
+	go func() {
+		log.Fatal(http.ListenAndServe(":420",http.HandlerFunc(blockRequestHandler)))
+	}()
+	go func() {
+		log.Fatal(http.ListenAndServe(":421",http.HandlerFunc(unblockRequestHandler)))
 	}()
 	log.Fatal(http.ListenAndServe(":42069",http.HandlerFunc(httpRequestHandler)))
 
@@ -221,4 +194,26 @@ func tunnel(dest io.WriteCloser, src io.ReadCloser) {
     defer func() { _ = dest.Close() }()
     defer func() { _ = src.Close() }()
     _, _ = io.Copy(dest, src)
+}
+
+// This method handles the block command requests from console
+func blockRequestHandler(w http.ResponseWriter, req *http.Request) {
+	log.Printf("Received block request")
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		log.Fatalf("Problem reading block request body: %v", err)
+	}
+	url := string(body)
+	blockedURLs[url] = true
+}
+
+// This method handles the unblock command requests from console
+func unblockRequestHandler(w http.ResponseWriter, req *http.Request) {
+	log.Printf("Received unblock request")
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		log.Fatalf("Problem reading unblock request body: %v", err)
+	}
+	url := string(body)
+	blockedURLs[url] = false
 }
