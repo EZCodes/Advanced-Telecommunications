@@ -14,11 +14,6 @@ import (
 
 const dateFormat = "Mon, 02 Jan 2006 15:04:05 MST"
 
-type ReadWriter struct {
-	io.Reader
-	io.Writer
-}
-
 type cachedResponse struct {
 	response *http.Response // most of the response to use the headers
 	responseBody []byte // processed body of the response, since on receival it's streamed (can only store it in this form)
@@ -37,7 +32,6 @@ func main() {
 		Handler:        http.HandlerFunc(httpsRequestHandler),
 		TLSNextProto: 	make(map[string]func(*http.Server, *tls.Conn, http.Handler)), //Disable HTTP/2
 	}
-
 	go func() {
 		log.Fatal(s.ListenAndServe())
 	}()
@@ -47,15 +41,22 @@ func main() {
 	go func() {
 		log.Fatal(http.ListenAndServe(":421",http.HandlerFunc(unblockRequestHandler)))
 	}()
-	log.Fatal(http.ListenAndServe(":42069",http.HandlerFunc(httpRequestHandler)))
-
-	
+	log.Fatal(http.ListenAndServe(":42069",http.HandlerFunc(httpRequestHandler)))	
 }
 
 // This function handles incoming requests and responds to them if needed
 func httpRequestHandler(w http.ResponseWriter, req *http.Request) {	
-	client := &http.Client{}	
 	log.Printf("received the http request")
+	
+	//check if we blocked this address
+	for blockedURL, isBlocked := range blockedURLs {
+		if strings.Contains(req.URL.String(), blockedURL) && isBlocked {
+			w.WriteHeader(http.StatusLocked)
+			log.Printf("Request blocked according to administrator policy.")
+			return
+		}	
+	}
+	client := &http.Client{}	
 	url := req.URL
     url.Host = req.Host
     url.Scheme = "http"
@@ -160,6 +161,14 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 
 func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
 	log.Printf("received https request")
+	//check if we blocked this address
+	for blockedURL, isBlocked := range blockedURLs {
+		if strings.Contains(req.URL.String(), blockedURL) && isBlocked {
+			w.WriteHeader(http.StatusLocked)
+			log.Printf("Request blocked according to administrator policy.")
+			return
+		}	
+	}
 	if req.Method != http.MethodConnect {
         http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
         return
