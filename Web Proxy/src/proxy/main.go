@@ -131,7 +131,7 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 	for head, values := range resp.Header {
 		if head == "Cache-Control" {
 			for _, value := range values {
-				if value == "no-cache" || value == "no-store" || value == "public" {
+				if value == "no-cache" || value == "no-store" || value == "private" {
 					canCache = false
 					log.Printf("Response not cache-able")
 				}
@@ -174,7 +174,7 @@ func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
         return
     }
 	log.Printf("Dialing...")
-	serverConn, err := net.DialTimeout("tcp", req.Host, time.Second*30)
+	serverConn, err := net.DialTimeout("tcp", req.Host, time.Second*10)
     if err != nil {
         http.Error(w, err.Error(), http.StatusServiceUnavailable)
         return
