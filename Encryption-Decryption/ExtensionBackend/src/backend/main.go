@@ -11,7 +11,6 @@ import (
     "log"
     "encoding/json"
     "crypto/rsa"
-    "crypto"
     "crypto/rand"
 )
 
@@ -77,7 +76,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	
 	if decodedRequest.Type == "encrypt" {
-		response, err := encryptTheMessage(request)
+		response, err := encryptTheMessage(decodedRequest)
 		if err != nil {
 			log.Printf("Encrypting failed: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -93,7 +92,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseJSON)
 	} else if decodedRequest.Type == "decrypt" {
-		response, err := decryptTheMessage(request)
+		response, err := decryptTheMessage(decodedRequest)
 		if err != nil {
 			log.Printf("Decrypting failed: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -109,7 +108,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseJSON)
 	} else if decodedRequest.Type == "add" {
-		response, err = addToGroup(request)
+		response, err := addToGroup(decodedRequest)
 		if err != nil {
 			log.Printf("Adding failed: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -125,7 +124,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseJSON)
 	} else if decodedRequest.Type == "remove" {
-		response, err = removeFromGroup(request)
+		response, err := removeFromGroup(decodedRequest)
 		if err != nil {
 			log.Printf("Removing failed: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -141,7 +140,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseJSON)
 	} else if decodedRequest.Type == "login" {
-		response, err := logIn(request)
+		response, err := logIn(decodedRequest)
 		if err != nil {
 			log.Printf("Login failed: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -157,7 +156,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseJSON)
 	} else if decodedRequest.Type == "register" {
-		success, err := registerUser(request)
+		success, err := registerUser(decodedRequest)
 		if err != nil {
 			log.Printf("Registration failed: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -168,7 +167,6 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
-	
 	}	
 }
 
@@ -182,7 +180,7 @@ func encryptTheMessage(req Request) (Response, error) {
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
-		return nil, err
+		return Response{}, err
 	}
 	recipients := result.group
 	var ciphertext string
@@ -190,36 +188,33 @@ func encryptTheMessage(req Request) (Response, error) {
 		encryptedMessage, err := encryptSingle(recipient, req.Message)
 		if err != nil {
 			log.Printf("Problem encrypting the message: %v", err)
-			return nil, err
+			return Response{}, err
 		}
 		ciphertext = ciphertext+ " "+recipient+":"+encryptedMessage	
 	}
 	response := Response{
-		Message: ciphertext
+		Message: ciphertext,
 	}
 	return response, nil
 }
 
 //Encrypts the message for a single user
-func encryptSingle(user, plaintext string) string, error {
-	username := req.User
-	password := req.Password
-	
+func encryptSingle(username, plaintext string) (string, error) {	
 	var result bson.M
-	filter := bson.M{"name": username, "password": password}
+	filter := bson.M{"name": username}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
-		return nil, err
+		return "", err
 	}
 	
 	publicKey := result.public_key
-	ciphertextBytes, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, byte(plaintext))
+	ciphertextBytes, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, []byte(plaintext))
 	if err != nil {
-		return err
+		return "", err
 	}
 	ciphertext := string(ciphertextBytes)
-	return ciphertext
+	return ciphertext, nil
 
 }
 
@@ -233,17 +228,17 @@ func decryptTheMessage(req Request) (Response, error) {
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
-		return nil, err
+		return Response{}, err
 	}
 	
 	privateKey := result.private_key
-	plaintextBytes, err := privateKey.Decrypt(rand.Reader, byte(req.Message))
+	plaintextBytes, err := privateKey.Decrypt(rand.Reader, []byte(req.Message))
 	if err != nil {
 		log.Printf("Problem decrypting the message: %v", err)
 	}
 	plaintext := string(plaintextBytes)
 	response := Response{
-		Message: plaintext
+		Message: plaintext,
 	}
 	return response, nil
 	
@@ -259,7 +254,7 @@ func addToGroup(req Request) (GroupListResponse, error) {
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
-		return nil, err
+		return GroupListResponse{}, err
 	}
 
 	recipients := append(result.group, req.Message)
@@ -270,14 +265,14 @@ func addToGroup(req Request) (GroupListResponse, error) {
 		"private_key" : result.private_key,
 		"public_key" : result.public_key,
 		"group" : recipients}
-	var bson.M replacedDoc
-	err := coll.FindOneAndReplace(context.Background(), filter, replacement).Decode(&replacedDoc)
+	var replacedDoc bson.M 
+	err = collection.FindOneAndReplace(context.Background(), filter, replacement).Decode(&replacedDoc)
 	if err != nil {
 	    log.Printf("Problem replacing the document: %v", err)
-	    return nil, err
+	    return GroupListResponse{}, err
 	}
 	response := GroupListResponse{
-		GroupMembers = recipients
+		GroupMembers : recipients,
 	}
 	return response, nil
 }
@@ -292,7 +287,7 @@ func removeFromGroup(req Request) (GroupListResponse, error) {
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
-		return nil, err
+		return GroupListResponse{}, err
 	}
 
 	recipients := result.group
@@ -313,14 +308,14 @@ func removeFromGroup(req Request) (GroupListResponse, error) {
 		"private_key" : result.private_key,
 		"public_key" : result.public_key,
 		"group" : newRecipients}
-	var bson.M replacedDoc
-	err := coll.FindOneAndReplace(context.Background(), filter, replacement).Decode(&replacedDoc)
+	var replacedDoc bson.M 
+	err = collection.FindOneAndReplace(context.Background(), filter, replacement).Decode(&replacedDoc)
 	if err != nil {
 	    log.Printf("Problem replacing the document: %v", err)
-	    return nil, err
+	    return GroupListResponse{}, err
 	}
 	response := GroupListResponse{
-		GroupMembers = newRecipients
+		GroupMembers : newRecipients,
 	}
 	return response, nil
 }
@@ -335,10 +330,10 @@ func logIn(req Request) (GroupListResponse, error) {
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
-		return nil, err
+		return GroupListResponse{}, err
 	}
 	response := GroupListResponse{
-		GroupMembers = result.group
+		GroupMembers : result.group,
 	}
 	return response, nil
 }
