@@ -78,22 +78,97 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 	
 	if decodedRequest.Type == "encrypt" {
 		response, err := encryptTheMessage(request)
-		//TODO send stuff back
+		if err != nil {
+			log.Printf("Encrypting failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Marshalling failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseJSON)
 	} else if decodedRequest.Type == "decrypt" {
 		response, err := decryptTheMessage(request)
-		//TODO send stuff back
+		if err != nil {
+			log.Printf("Decrypting failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Marshalling failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseJSON)
 	} else if decodedRequest.Type == "add" {
 		response, err = addToGroup(request)
-		//TODO send stuff back
+		if err != nil {
+			log.Printf("Adding failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Marshalling failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseJSON)
 	} else if decodedRequest.Type == "remove" {
 		response, err = removeFromGroup(request)
-		//TODO send stuff back
+		if err != nil {
+			log.Printf("Removing failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Marshalling failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseJSON)
 	} else if decodedRequest.Type == "login" {
 		response, err := logIn(request)
-		//TODO send stuff back
+		if err != nil {
+			log.Printf("Login failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Marshalling failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseJSON)
 	} else if decodedRequest.Type == "register" {
 		success, err := registerUser(request)
-		//TODO send stuff back		
+		if err != nil {
+			log.Printf("Registration failed: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if success {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	
 	}	
 }
 
