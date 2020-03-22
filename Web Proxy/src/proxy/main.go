@@ -46,7 +46,7 @@ func main() {
 
 // This function handles incoming requests and responds to them if needed
 func httpRequestHandler(w http.ResponseWriter, req *http.Request) {	
-	log.Printf("received the http request")
+	log.Printf("received the http request from : %s", req.URL.String())
 	
 	//check if we blocked this address
 	for blockedURL, isBlocked := range blockedURLs {
@@ -160,7 +160,7 @@ func httpRequestHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func httpsRequestHandler(w http.ResponseWriter, req *http.Request) {
-	log.Printf("received https request")
+	log.Printf("received https request from : %s", req.URL.String())
 	//check if we blocked this address
 	for blockedURL, isBlocked := range blockedURLs {
 		if strings.Contains(req.URL.String(), blockedURL) && isBlocked {
