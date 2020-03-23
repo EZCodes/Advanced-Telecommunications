@@ -5,6 +5,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
     "go.mongodb.org/mongo-driver/mongo/options"
     "go.mongodb.org/mongo-driver/bson"
+    "go.mongodb.org/mongo-driver/bson/primitive"
     "fmt"
     "io/ioutil"
     "context"
@@ -13,6 +14,15 @@ import (
     "crypto/rsa"
     "crypto/rand"
 )
+
+type UserEntry struct {
+	ID			*primitive.ObjectID	`bson:"_id,omitempty"`
+	Name	 	string				`bson:"name"`
+	Password 	string				`bson:"password"`
+	Private_key *rsa.PrivateKey		`bson:"private_key"`
+	Public_key	*rsa.PublicKey		`bson:"public_key"`
+	Group 		[]string			`bson:"group",omitempty`
+}
 
 type Request struct {
 	Type 		string		`json:type`
@@ -175,14 +185,14 @@ func encryptTheMessage(req Request) (Response, error) {
 	username := req.User
 	password := req.Password
 	
-	var result bson.M
+	var result UserEntry
 	filter := bson.M{"name": username, "password": password}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		log.Printf("User does not exist or there was another problem: %v", err)
 		return Response{}, err
 	}
-	recipients := result.group
+	recipients := result.Group
 	var ciphertext string
 	for _, recipient := range recipients {
 		encryptedMessage, err := encryptSingle(recipient, req.Message)
@@ -200,7 +210,7 @@ func encryptTheMessage(req Request) (Response, error) {
 
 //Encrypts the message for a single user
 func encryptSingle(username, plaintext string) (string, error) {	
-	var result bson.M
+	var result UserEntry
 	filter := bson.M{"name": username}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
@@ -208,7 +218,7 @@ func encryptSingle(username, plaintext string) (string, error) {
 		return "", err
 	}
 	
-	publicKey := result.public_key
+	publicKey := result.Public_key
 	ciphertextBytes, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, []byte(plaintext))
 	if err != nil {
 		return "", err
@@ -223,7 +233,7 @@ func decryptTheMessage(req Request) (Response, error) {
 	username := req.User
 	password := req.Password
 	
-	var result bson.M
+	var result UserEntry
 	filter := bson.M{"name": username, "password": password}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
@@ -231,8 +241,8 @@ func decryptTheMessage(req Request) (Response, error) {
 		return Response{}, err
 	}
 	
-	privateKey := result.private_key
-	plaintextBytes, err := privateKey.Decrypt(rand.Reader, []byte(req.Message))
+	privateKey := result.Private_key
+	plaintextBytes, err := privateKey.Decrypt(rand.Reader, []byte(req.Message), nil)
 	if err != nil {
 		log.Printf("Problem decrypting the message: %v", err)
 	}
@@ -249,7 +259,7 @@ func addToGroup(req Request) (GroupListResponse, error) {
 	username := req.User
 	password := req.Password
 	
-	var result bson.M
+	var result UserEntry
 	filter := bson.M{"name": username, "password": password}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
@@ -257,13 +267,13 @@ func addToGroup(req Request) (GroupListResponse, error) {
 		return GroupListResponse{}, err
 	}
 
-	recipients := append(result.group, req.Message)
+	recipients := append(result.Group, req.Message)
 	
 	replacement := bson.M{
 		"name" : username,
 		"password" : password,
-		"private_key" : result.private_key,
-		"public_key" : result.public_key,
+		"private_key" : result.Private_key,
+		"public_key" : result.Public_key,
 		"group" : recipients}
 	var replacedDoc bson.M 
 	err = collection.FindOneAndReplace(context.Background(), filter, replacement).Decode(&replacedDoc)
@@ -282,7 +292,7 @@ func removeFromGroup(req Request) (GroupListResponse, error) {
 	username := req.User
 	password := req.Password
 	
-	var result bson.M
+	var result UserEntry
 	filter := bson.M{"name": username, "password": password}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
@@ -290,11 +300,9 @@ func removeFromGroup(req Request) (GroupListResponse, error) {
 		return GroupListResponse{}, err
 	}
 
-	recipients := result.group
-
 	toRemove := req.Message
 	var newRecipients []string
-	for _, recipient := range recipients.GroupMembers {
+	for _, recipient := range result.Group {
 		if recipient == toRemove {
 			continue
 		} else {
@@ -305,8 +313,8 @@ func removeFromGroup(req Request) (GroupListResponse, error) {
 	replacement := bson.M{
 		"name" : username,
 		"password" : password,
-		"private_key" : result.private_key,
-		"public_key" : result.public_key,
+		"private_key" : result.Private_key,
+		"public_key" : result.Public_key,
 		"group" : newRecipients}
 	var replacedDoc bson.M 
 	err = collection.FindOneAndReplace(context.Background(), filter, replacement).Decode(&replacedDoc)
@@ -325,7 +333,7 @@ func logIn(req Request) (GroupListResponse, error) {
 	username := req.User
 	password := req.Password
 	
-	var result bson.M
+	var result UserEntry
 	filter := bson.M{"name": username, "password": password}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
@@ -333,7 +341,7 @@ func logIn(req Request) (GroupListResponse, error) {
 		return GroupListResponse{}, err
 	}
 	response := GroupListResponse{
-		GroupMembers : result.group,
+		GroupMembers : result.Group,
 	}
 	return response, nil
 }
@@ -343,14 +351,17 @@ func registerUser(req Request) (bool, error) {
 	username := req.User
 	password := req.Password
 	
-	var result bson.M
+	var result UserEntry
 	filter := bson.D{{"name",username}}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err!= nil {
 		if err == mongo.ErrNoDocuments {
-			privateKey := rsa.GenerateKey(rand.Reader, 2048)
+			privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			if err != nil {
+				log.Printf("Private key generation failed: %v", err)
+			}
 			publicKey := privateKey.Public()
-			_, err := collection.InsertOne(context.Background(), bson.M{"name": username, "password": password, "private_key": privateKey, "public_key": publicKey})
+			_, err = collection.InsertOne(context.Background(), bson.M{"name": username, "password": password, "private_key": privateKey, "public_key": publicKey})
 			if err != nil {
 				log.Printf("Problem registering the user: %v", err)
 				return false, err
@@ -360,7 +371,7 @@ func registerUser(req Request) (bool, error) {
 			log.Printf("Problem registering the user: %v", err)
 			return false, err
 		}
-		log.Printf("User already exists")
-		return false, nil
 	}
+	log.Printf("User already exists")
+	return false, nil
 }
