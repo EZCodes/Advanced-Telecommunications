@@ -26,8 +26,7 @@ function openDecryptor() {
 function parseMessage() {
 	var text = document.getElementById('encryp').value;
 	var recipients = document.getElementById('recipient').value
-	
-		
+	//TODO fetch passwords and group members
 	
 	var xhr = new XMLHttpRequest();
 	var url = "http://localhost:420";
@@ -36,13 +35,16 @@ function parseMessage() {
 	xhr.onreadystatechange = function () { // when we receive the message, this function is a listener
 		if (xhr.readyState === 4 && xhr.status === 200) { // receive json from the server
 			var json = JSON.parse(xhr.responseText);
+			document.getElementById("output").innerHTML = "Encrypted message is: " + json.message;
+		} else {
+			document.getElementById("output").innerHTML = "Encryption failed";
 		}
 	};
-	var data = JSON.stringify({"email": "hey@mail.com", "password": "101010"});
+	var data = JSON.stringify({"type": "encrypt", "user": username, "password": password, "message" : text, "recipients" : recipients});
 	xhr.send(data); // send the json to the server
 
 
-	document.getElementById("output").innerHTML = "Encrypted message is: "
+	
 }
 
 // Listeners for the buttons
@@ -51,3 +53,24 @@ document.getElementById('removeFromGroup').addEventListener('click', openGroupRe
 document.getElementById('encryptionMode').addEventListener('click', openEncryptor);
 document.getElementById('decryptionMode').addEventListener('click', openDecryptor);
 document.getElementById('send').addEventListener('click', parseMessage);
+
+let selectList = document.getElementById('recipient');
+selectList.length = 0;
+let defaultOpt = document.createElement('option');
+defaultOpt.text = 'All in Group';
+selectList.add(defaultOpt);
+selectList.selectedIndex = 0;
+
+var group;
+chrome.storage.sync.get(['group'], function(result) {
+	group = result.value
+});
+
+let option;
+for (let i=0;i<group.length;i++) {
+	option = document.createElement('option');
+	option.text = group[i];
+	option.value = group[i];
+	selectList.add(option);
+}
+
