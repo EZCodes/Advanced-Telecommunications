@@ -23,26 +23,12 @@ function openDecryptor() {
 	window.location.href = "decrypt_popup.html";
 }
 
-function parseMessage() {
-	var text = document.getElementById('encryp').value;
-	var recipients = document.getElementById('recipient').value
+function add() {
+	var userToAdd = document.getElementById('addUser').value;
 	
-		
+	// send the username and current credentials and recieve new username list and save it
 	
-	var xhr = new XMLHttpRequest();
-	var url = "http://localhost:420";
-	xhr.open("POST", url, true);
-	xhr.setRequestHeader("Content-Type", "application/json");
-	xhr.onreadystatechange = function () { // when we receive the message, this function is a listener
-		if (xhr.readyState === 4 && xhr.status === 200) { // receive json from the server
-			var json = JSON.parse(xhr.responseText);
-		}
-	};
-	var data = JSON.stringify({"email": "hey@mail.com", "password": "101010"});
-	xhr.send(data); // send the json to the server
-
-
-	document.getElementById("output").innerHTML = "Encrypted message is: "
+	document.getElementById("output").innerHTML = "User successfully added to the group!"
 }
 
 // Listeners for the buttons
@@ -50,4 +36,4 @@ document.getElementById('addToGroup').addEventListener('click', openGroupAdder);
 document.getElementById('removeFromGroup').addEventListener('click', openGroupRemover);
 document.getElementById('encryptionMode').addEventListener('click', openEncryptor);
 document.getElementById('decryptionMode').addEventListener('click', openDecryptor);
-document.getElementById('send').addEventListener('click', parseMessage);
+document.getElementById('add').addEventListener('click', add);

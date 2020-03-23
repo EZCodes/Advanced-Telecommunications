@@ -1,38 +1,56 @@
-  <!DOCTYPE html>
+   <!DOCTYPE html>
   <html>
     <head>
-	  <title>Remove from group menu</title>
+	  <title>Remove from Group Menu</title>
       <style = "text/css">
-		.main_menu button {
+		.upper_menu button {
 		  outline: none;
 		  float: left;
 		  background-color: #4CAF50;
 		  color: white; 
 		  padding: 10px 20px;
+		  margin: 5px;
 		}
-		.main_menu button:hover {
+		.upper_menu button:hover {
 		  background-color: #3e8e41;
 		}
-		.main_menu:after {
+		.upper_menu:after {
 		  content: "";
 		  clear: both;
 		  display: table;
 		}
+		.bottom_part {
+		  margin: 5px;
+		  float: left;
+		}
 		.main_window {
 		  width:600px;
-		  height:200px;
+		  height:120px;
+		}
+		.text_field {
+		  margin: 5px;
 		}
       </style>
     </head>
     <body>
 	  <div class="main_window">
-		<div class="main_menu">
+		<div class="upper_menu">
 			<button id="addToGroup">Add To Group</button>
 			<button id="removeFromGroup">Remove From Group</button>
 			<button id="encryptionMode">Encrypt Mode</button>
 			<button id="decryptionMode">Decrypt Mode</button>
 		</div>
+		<div class="text_field">
+			<form>
+				<label for="removeUser">User to remove:</label>
+				<input type="text" id="removeUser" name="removegrp">
+			</form>
+		</div>
+		<div class="bottom_part">
+			<button id="remove">Remove</button>
+			<p id="output"></p>
+		</div>		
 	  </div>
-	  <script src="popup.js"></script>
+	  <script src="remove_popup.js"></script>
     </body>
   </html>

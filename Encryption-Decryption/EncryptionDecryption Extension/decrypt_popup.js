@@ -23,26 +23,12 @@ function openDecryptor() {
 	window.location.href = "decrypt_popup.html";
 }
 
-function parseMessage() {
-	var text = document.getElementById('encryp').value;
-	var recipients = document.getElementById('recipient').value
-	
-		
-	
-	var xhr = new XMLHttpRequest();
-	var url = "http://localhost:420";
-	xhr.open("POST", url, true);
-	xhr.setRequestHeader("Content-Type", "application/json");
-	xhr.onreadystatechange = function () { // when we receive the message, this function is a listener
-		if (xhr.readyState === 4 && xhr.status === 200) { // receive json from the server
-			var json = JSON.parse(xhr.responseText);
-		}
-	};
-	var data = JSON.stringify({"email": "hey@mail.com", "password": "101010"});
-	xhr.send(data); // send the json to the server
+function decrypt() {
+	var ciphertext = document.getElementById('decryptMsg').value;
 
-
-	document.getElementById("output").innerHTML = "Encrypted message is: "
+	// send message and credentials to the server and receive the plaintext
+	
+	document.getElementById("output").innerHTML = "Decrypted message is: "
 }
 
 // Listeners for the buttons
@@ -50,4 +36,4 @@ document.getElementById('addToGroup').addEventListener('click', openGroupAdder);
 document.getElementById('removeFromGroup').addEventListener('click', openGroupRemover);
 document.getElementById('encryptionMode').addEventListener('click', openEncryptor);
 document.getElementById('decryptionMode').addEventListener('click', openDecryptor);
-document.getElementById('send').addEventListener('click', parseMessage);
+document.getElementById('decrypt').addEventListener('click', decrypt);
