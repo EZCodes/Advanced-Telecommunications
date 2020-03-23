@@ -2,7 +2,7 @@
     "name": "Encryption/Decryption app",
     "version": "1.0",
     "description": "Social media message encryption app",
-	"permissions": ["activeTab","declarativeContent","storage"],
+	"permissions": ["activeTab","declarativeContent","storage","http://localhost:420/"],
 	"background": {
       "scripts": ["background.js"],
       "persistent": false

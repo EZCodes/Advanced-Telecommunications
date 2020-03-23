@@ -14,14 +14,14 @@ function login() {
 	request.setRequestHeader("Content-Type", "application/json");
 	request.onreadystatechange = function () { // when we receive the message, this function is a listener
 		if (request.readyState === 4 && request.status === 200) { // proceed accordingly when received
-			var json = JSON.parse(xhr.responseText);
-			chrome.storage.sync.set({"username": username}, function() {
+			var json = JSON.parse(request.responseText);
+			chrome.storage.local.set({"username": username}, function() {
 				console.log('Username saved!');
 			});
-			chrome.storage.sync.set({"password": password}, function() {
+			chrome.storage.local.set({"password": password}, function() {
 				console.log('Password saved!');
 			});
-			chrome.storage.sync.set({"group": json.members}, function() {
+			chrome.storage.local.set({"group": json.GroupMembers}, function() {
 				console.log('Group saved!');
 			});
 			chrome.browserAction.setPopup({popup: 'popup.html'});

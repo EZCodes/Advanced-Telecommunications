@@ -27,32 +27,30 @@ function remove() {
 	var userToRemove = document.getElementById('removeUser').value;
 	var username;
 	var password;
-	chrome.storage.sync.get(['password'], function(result) {
-        password = result.value
+	chrome.storage.local.get(['password'], function(result) {
+        password = result.password
+		chrome.storage.local.get(['username'], function(result) {
+			username = result.username
+			// send the username and current credentials recieve new username list and save it
+			var request = new XMLHttpRequest();
+			var url = "http://localhost:420";
+			request.open("POST", url, true);
+			request.setRequestHeader("Content-Type", "application/json");
+			request.onreadystatechange = function () { // when we receive the message, this function is a listener
+				if (request.readyState === 4 && request.status === 200) { // proceed accordingly when received
+					var json = JSON.parse(request.responseText);
+					chrome.storage.local.set({"group": json.GroupMembers}, function() {
+						console.log('Group saved!');
+					});	
+					document.getElementById("output").innerHTML = "User successfully removed from the group!"
+				} else {
+					document.getElementById("output").innerHTML = "There was a problem removing user from the group. Try again!"
+				}
+			};
+			var data = JSON.stringify({"type": "remove", "user": username, "password": password, "message" : userToRemove});
+			request.send(data); // send the json to the server
+		});
     });
-	chrome.storage.sync.get(['username'], function(result) {
-		username = result.value
-    });
-	
-	// send the username and current credentials recieve new username list and save it
-	var request = new XMLHttpRequest();
-	var url = "http://localhost:420";
-	request.open("POST", url, true);
-	request.setRequestHeader("Content-Type", "application/json");
-	request.onreadystatechange = function () { // when we receive the message, this function is a listener
-		if (request.readyState === 4 && request.status === 200) { // proceed accordingly when received
-			var json = JSON.parse(xhr.responseText);
-			chrome.storage.sync.set({"group": json.members}, function() {
-				console.log('Group saved!');
-			});	
-			document.getElementById("output").innerHTML = "User successfully removed from the group!"
-		} else {
-			document.getElementById("output").innerHTML = "There was a problem removing user from the group. Try again!"
-		}
-	};
-	var data = JSON.stringify({"type": "remove", "user": username, "password": password, "message" : userToRemove});
-	request.send(data); // send the json to the server
-	
 }
 
 // Listeners for the buttons

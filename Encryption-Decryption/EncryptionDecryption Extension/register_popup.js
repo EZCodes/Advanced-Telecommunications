@@ -14,13 +14,13 @@ function register() {
 	request.setRequestHeader("Content-Type", "application/json");
 	request.onreadystatechange = function () { // when we receive the message, this function is a listener
 		if (request.readyState === 4 && request.status === 200) { // proceed accordingly when received
-			chrome.storage.sync.set({"username": username}, function() {
+			chrome.storage.local.set({"username": username}, function() {
 				console.log('Username saved!');
 			});
-			chrome.storage.sync.set({"password": password}, function() {
+			chrome.storage.local.set({"password": password}, function() {
 				console.log('Password saved!');
 			});
-			chrome.storage.sync.set({"group": []}, function() {
+			chrome.storage.local.set({"group": []}, function() {
 				console.log('Group saved!');
 			});			
 			chrome.browserAction.setPopup({popup: 'popup.html'});

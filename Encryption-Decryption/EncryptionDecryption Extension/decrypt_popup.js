@@ -27,29 +27,26 @@ function decrypt() {
 	var ciphertext = document.getElementById('decryptMsg').value;
 	var username;
 	var password;
-	chrome.storage.sync.get(['password'], function(result) {
-        password = result.value
-    });
-	chrome.storage.sync.get(['username'], function(result) {
-		username = result.value
-    });
-	
-	var xhr = new XMLHttpRequest();
-	var url = "http://localhost:420";
-	xhr.open("POST", url, true);
-	xhr.setRequestHeader("Content-Type", "application/json");
-	xhr.onreadystatechange = function () { // when we receive the message, this function is a listener
-		if (xhr.readyState === 4 && xhr.status === 200) { // receive json from the server
-			var json = JSON.parse(xhr.responseText);
-			document.getElementById("output").innerHTML = "Decrypted message is: "; + json.message;
-		} else {
-			document.getElementById("output").innerHTML = "Decryption failed";
-		}
-	};
-	var data = JSON.stringify({"type": "decrypt", "user": username, "password": password, "message" : ciphertext});
-	xhr.send(data); // send the json to the server
-	
-	
+	chrome.storage.local.get(['password'], function(result) {
+        password = result.password
+		chrome.storage.local.get(['username'], function(result) {
+			username = result.username
+			var request = new XMLHttpRequest();
+			var url = "http://localhost:420";
+			request.open("POST", url, true);
+			request.setRequestHeader("Content-Type", "application/json");
+			request.onreadystatechange = function () { // when we receive the message, this function is a listener
+				if (request.readyState === 4 && request.status === 200) { // receive json from the server
+					var json = JSON.parse(request.responseText);
+					document.getElementById("output").innerHTML = "Decrypted message is: "; + json.message;
+				} else {
+					document.getElementById("output").innerHTML = "Decryption failed";
+				}
+			};
+			var data = JSON.stringify({"type": "decrypt", "user": username, "password": password, "message" : ciphertext});
+			request.send(data); // send the json to the server		
+		});
+    });	
 }
 
 // Listeners for the buttons
