@@ -9,6 +9,7 @@
 		  background-color: #4CAF50;
 		  color: white; 
 		  padding: 10px 20px;
+		  margin: 5px;
 		}
 		.main_menu button:hover {
 		  background-color: #3e8e41;
@@ -22,6 +23,12 @@
 		  width:600px;
 		  height:200px;
 		}
+		.textbox {
+		  margin: 5px;
+		}
+		.output {
+		  margin: 5px;
+		}
       </style>
     </head>
     <body>
@@ -32,7 +39,13 @@
 			<button id="encryptionMode">Encrypt Mode</button>
 			<button id="decryptionMode">Decrypt Mode</button>
 		</div>
+		<div class="textbox">
+			<textarea name="enc_message" id="decryptMsg" cols="60" rows="3">Please enter your message to decrypt</textarea>
+			</br>
+			<button id="decrypt">Decrypt!</button>
+		</div>
+		<p id="output"></p>
 	  </div>
-	  <script src="popup.js"></script>
+	  <script src="decrypt_popup.js"></script>
     </body>
   </html>
