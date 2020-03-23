@@ -13,14 +13,32 @@ import (
     "encoding/json"
     "crypto/rsa"
     "crypto/rand"
+    "math/big"
 )
+
+type ReworkedPublicKey struct {
+	N string
+	E int
+}
+
+type ReworkedPrivateKey struct {
+	D 			string
+	Primes  	[]string
+	Precomputed *ReworkedPrecomputed
+}
+
+type ReworkedPrecomputed struct {
+	Dp, Dq  	string
+	Qinv 		string
+	CRTValues 	[]string
+}
 
 type UserEntry struct {
 	ID			*primitive.ObjectID	`bson:"_id,omitempty"`
 	Name	 	string				`bson:"name"`
 	Password 	string				`bson:"password"`
-	Private_key *rsa.PrivateKey		`bson:"private_key"`
-	Public_key	*rsa.PublicKey		`bson:"public_key"`
+	Private_key ReworkedPrivateKey	`bson:"private_key"`
+	Public_key	ReworkedPublicKey	`bson:"public_key"`
 	Group 		[]string			`bson:"group",omitempty`
 }
 
@@ -70,17 +88,15 @@ func main(){
 	collection = mongo_client.Database("Telecomms").Collection("Userbase")
 	
 	log.Fatal(http.ListenAndServe(":420", http.HandlerFunc(requestHandler)))
-	
 }
 
 //Handles the requests from the extension
 func requestHandler(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Request received!")
 	var decodedRequest Request
-	
 	err := json.NewDecoder(req.Body).Decode(&decodedRequest)
 	if err != nil {
-		log.Printf("JSON decoding failed!")
+		log.Printf("JSON decoding failed! %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -184,7 +200,7 @@ func requestHandler(w http.ResponseWriter, req *http.Request) {
 func encryptTheMessage(req Request) (Response, error) {
 	username := req.User
 	password := req.Password
-	
+	fmt.Println(req.Message)
 	var result UserEntry
 	filter := bson.M{"name": username, "password": password}
 	err := collection.FindOne(context.Background(), filter).Decode(&result)
@@ -192,7 +208,7 @@ func encryptTheMessage(req Request) (Response, error) {
 		log.Printf("User does not exist or there was another problem: %v", err)
 		return Response{}, err
 	}
-	recipients := result.Group
+	recipients := req.Recipients
 	var ciphertext string
 	for _, recipient := range recipients {
 		encryptedMessage, err := encryptSingle(recipient, req.Message)
@@ -219,13 +235,17 @@ func encryptSingle(username, plaintext string) (string, error) {
 	}
 	
 	publicKey := result.Public_key
-	ciphertextBytes, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, []byte(plaintext))
+	trueN, _ := big.NewInt(0).SetString(publicKey.N, 0)
+	truePublicKey := &rsa.PublicKey{
+		E: publicKey.E,
+		N: trueN,
+	}
+	ciphertextBytes, err := rsa.EncryptPKCS1v15(rand.Reader, truePublicKey, []byte(plaintext))
 	if err != nil {
 		return "", err
 	}
 	ciphertext := string(ciphertextBytes)
 	return ciphertext, nil
-
 }
 
 //Decrypts the message and sends back the plaintext
@@ -240,9 +260,34 @@ func decryptTheMessage(req Request) (Response, error) {
 		log.Printf("User does not exist or there was another problem: %v", err)
 		return Response{}, err
 	}
-	
+	publicKey := result.Public_key
+	trueN, _ := big.NewInt(0).SetString(publicKey.N, 0)
+	truePublicKey := &rsa.PublicKey{
+		E: publicKey.E,
+		N: trueN,
+	}
 	privateKey := result.Private_key
-	plaintextBytes, err := privateKey.Decrypt(rand.Reader, []byte(req.Message), nil)
+	var truePrimes []*big.Int
+	for _, prime := range privateKey.Primes {
+		truePrime, _ := big.NewInt(0).SetString(prime, 0)
+		truePrimes = append(truePrimes, truePrime)
+	}
+	trueD, _ := big.NewInt(0).SetString(privateKey.D, 0)
+	trueDp, _ := big.NewInt(0).SetString(privateKey.Precomputed.Dp, 0)
+	trueDq, _ := big.NewInt(0).SetString(privateKey.Precomputed.Dq, 0)
+	trueQinv, _ := big.NewInt(0).SetString(privateKey.Precomputed.Qinv, 0)
+	truePrivateKey := &rsa.PrivateKey{
+		PublicKey:  *truePublicKey,
+		D: trueD,
+		Primes: truePrimes,
+		Precomputed : rsa.PrecomputedValues {
+			Dp: trueDp,
+			Dq: trueDq,
+			Qinv: trueQinv,
+			CRTValues: []rsa.CRTValue{},
+		},
+	}
+	plaintextBytes, err := truePrivateKey.Decrypt(rand.Reader, []byte(req.Message), nil)
 	if err != nil {
 		log.Printf("Problem decrypting the message: %v", err)
 	}
@@ -357,11 +402,29 @@ func registerUser(req Request) (bool, error) {
 	if err!= nil {
 		if err == mongo.ErrNoDocuments {
 			privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			var reworkedPrimes []string
+			for _, prime := range privateKey.Primes {
+				reworkedPrimes = append(reworkedPrimes, prime.String())
+			}
+			reworkedPrivK := &ReworkedPrivateKey{
+				D: privateKey.D.String(),
+				Primes: reworkedPrimes,
+				Precomputed: &ReworkedPrecomputed{
+					Dp: privateKey.Precomputed.Dp.String(),
+					Dq: privateKey.Precomputed.Dq.String(),
+					Qinv: privateKey.Precomputed.Qinv.String(),
+					CRTValues: []string{},
+				},
+			}
 			if err != nil {
 				log.Printf("Private key generation failed: %v", err)
 			}
-			publicKey := privateKey.Public()
-			_, err = collection.InsertOne(context.Background(), bson.M{"name": username, "password": password, "private_key": privateKey, "public_key": publicKey})
+			publicKey := privateKey.Public().(*rsa.PublicKey)
+			reworkedPK := &ReworkedPublicKey{
+				E: publicKey.E,
+				N: publicKey.N.String(),
+			}
+			_, err = collection.InsertOne(context.Background(), bson.M{"name": username, "password": password, "private_key": reworkedPrivK, "public_key": reworkedPK})
 			if err != nil {
 				log.Printf("Problem registering the user: %v", err)
 				return false, err
