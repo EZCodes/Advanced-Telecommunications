@@ -80,8 +80,6 @@ selectList.selectedIndex = 0;
 var group;
 chrome.storage.local.get(['group'], function(result) {
 	group = result.group;
-	console.log(group);
-	console.log(result.group);
 	let option;
 	for (let i=0;i<group.length;i++) {
 		option = document.createElement('option');

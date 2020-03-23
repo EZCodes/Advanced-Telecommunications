@@ -31,7 +31,6 @@ function add() {
         password = result.password;
 		chrome.storage.local.get(['username'], function(result) {
 			username = result.username;
-			console.log(username + " : " + password)
 			// send the username and current credentials and recieve new username list and save it
 			var request = new XMLHttpRequest();
 			var url = "http://localhost:420";
@@ -40,8 +39,6 @@ function add() {
 			request.onreadystatechange = function () { // when we receive the message, this function is a listener
 				if (request.readyState === 4 && request.status === 200) { // proceed accordingly when received
 					var json = JSON.parse(request.responseText);
-					console.log(json)
-					console.log(json.GroupMembers)
 					chrome.storage.local.set({"group": json.GroupMembers}, function() {
 						console.log('Group saved!');
 					});	
