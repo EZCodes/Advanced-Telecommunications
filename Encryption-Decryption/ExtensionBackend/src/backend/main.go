@@ -296,7 +296,6 @@ func decryptTheMessage(req Request) (Response, error) {
 		Message: plaintext,
 	}
 	return response, nil
-	
 }
 
 //Adds a user to the group and updates BD before returning new list to extension
