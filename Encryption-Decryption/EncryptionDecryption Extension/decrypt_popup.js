@@ -25,7 +25,14 @@ function openDecryptor() {
 
 function decrypt() {
 	var ciphertext = document.getElementById('decryptMsg').value;
-	//TODO fetch passwords
+	var username;
+	var password;
+	chrome.storage.sync.get(['password'], function(result) {
+        password = result.value
+    });
+	chrome.storage.sync.get(['username'], function(result) {
+		username = result.value
+    });
 	
 	var xhr = new XMLHttpRequest();
 	var url = "http://localhost:420";

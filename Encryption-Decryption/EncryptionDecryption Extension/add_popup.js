@@ -25,7 +25,14 @@ function openDecryptor() {
 
 function add() {
 	var userToAdd = document.getElementById('addUser').value;
-	//TODO fetch passwords
+	var username;
+	var password;
+	chrome.storage.sync.get(['password'], function(result) {
+        password = result.value
+    });
+	chrome.storage.sync.get(['username'], function(result) {
+		username = result.value
+    });
 	
 	// send the username and current credentials and recieve new username list and save it
 	var request = new XMLHttpRequest();

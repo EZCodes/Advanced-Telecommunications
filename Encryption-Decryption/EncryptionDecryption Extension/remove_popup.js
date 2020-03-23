@@ -25,7 +25,14 @@ function openDecryptor() {
 
 function remove() {
 	var userToRemove = document.getElementById('removeUser').value;
-	//TODO fetch passwords
+	var username;
+	var password;
+	chrome.storage.sync.get(['password'], function(result) {
+        password = result.value
+    });
+	chrome.storage.sync.get(['username'], function(result) {
+		username = result.value
+    });
 	
 	// send the username and current credentials recieve new username list and save it
 	var request = new XMLHttpRequest();

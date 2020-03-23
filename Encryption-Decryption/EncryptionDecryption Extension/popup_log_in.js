@@ -24,6 +24,8 @@ function login() {
 			chrome.storage.sync.set({"group": json.members}, function() {
 				console.log('Group saved!');
 			});
+			chrome.browserAction.setPopup({popup: 'popup.html'});
+			window.location.href = "popup.html";
 		} else {	
 			document.getElementById("error_output").innerHTML = "Login Failed!"
 		}

@@ -25,8 +25,24 @@ function openDecryptor() {
 
 function parseMessage() {
 	var text = document.getElementById('encryp').value;
-	var recipients = document.getElementById('recipient').value
-	//TODO fetch passwords and group members
+	var currentOption = document.getElementById('recipient').value
+	var recipients;
+	if (currentOption == 'all') {
+		chrome.storage.sync.get(['group'], function(result) {
+			recipients = result.value
+		});
+	} else {
+		recipients = [currentOption];
+	}
+	
+	var username;
+	var password;
+	chrome.storage.sync.get(['password'], function(result) {
+        password = result.value
+    });
+	chrome.storage.sync.get(['username'], function(result) {
+		username = result.value
+    });
 	
 	var xhr = new XMLHttpRequest();
 	var url = "http://localhost:420";
@@ -58,6 +74,7 @@ let selectList = document.getElementById('recipient');
 selectList.length = 0;
 let defaultOpt = document.createElement('option');
 defaultOpt.text = 'All in Group';
+defaultOpt.value = 'all';
 selectList.add(defaultOpt);
 selectList.selectedIndex = 0;
 
