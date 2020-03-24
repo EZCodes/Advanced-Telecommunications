@@ -38,7 +38,7 @@ function decrypt() {
 			request.onreadystatechange = function () { // when we receive the message, this function is a listener
 				if (request.readyState === 4 && request.status === 200) { // receive json from the server
 					var json = JSON.parse(request.responseText);
-					document.getElementById("output").innerHTML = "Decrypted message is: "; + json.message;
+					document.getElementById("output").innerHTML = "Decrypted message is: " + json.Message;
 				} else {
 					document.getElementById("output").innerHTML = "Decryption failed";
 				}
