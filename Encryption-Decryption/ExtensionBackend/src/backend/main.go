@@ -14,6 +14,7 @@ import (
     "crypto/rsa"
     "crypto/rand"
     "math/big"
+    "encoding/hex"
 )
 
 type ReworkedPublicKey struct {
@@ -244,7 +245,8 @@ func encryptSingle(username, plaintext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ciphertext := string(ciphertextBytes)
+	//convert to hext for more readable encoding
+	ciphertext := hex.EncodeToString(ciphertextBytes)
 	return ciphertext, nil
 }
 
@@ -287,9 +289,15 @@ func decryptTheMessage(req Request) (Response, error) {
 			CRTValues: []rsa.CRTValue{},
 		},
 	}
-	plaintextBytes, err := truePrivateKey.Decrypt(rand.Reader, []byte(req.Message), nil)
+	ciphertextBytes, err := hex.DecodeString(req.Message)
+	if err != nil {
+		log.Printf("Problem converting from hex ciphertext: %v", err)
+		return Response{}, err
+	}
+	plaintextBytes, err := truePrivateKey.Decrypt(rand.Reader, ciphertextBytes, nil)
 	if err != nil {
 		log.Printf("Problem decrypting the message: %v", err)
+		return Response{}, err
 	}
 	plaintext := string(plaintextBytes)
 	response := Response{
